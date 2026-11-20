@@ -15,7 +15,8 @@ using MCPDashboard.InventoryScanner;
 //   --output            results folder (default: results\<yyyyMMdd-HHmmss> next to the exe)
 //   --parallel          servers scanned at the same time (default 8)
 //   --timeout           seconds to wait when connecting to WMI or SQL Server (default 30)
-//   --update-dashboard  after the scan, write the results to the dashboard database (appsettings.json)
+//   --update-dashboard  after the scan, write the results to the dashboard database (appsettings.json), then email a
+//                       discrepancy summary (DiscrepancyReport in appsettings.json; skipped until it's filled in)
 //   --import            don't scan: write an earlier scan's inventory.json to the dashboard database
 //   --dry-run           with --update-dashboard / --import: do the updates, report them, then roll back
 //
@@ -30,6 +31,7 @@ string? Arg(string name)
 }
 bool Flag(string name) => args.Contains(name, StringComparer.OrdinalIgnoreCase);
 
+var runStartedUtc = DateTime.UtcNow;
 var importPath = Arg("--import");
 var updateDashboard = Flag("--update-dashboard") || importPath is not null;
 var dryRun = Flag("--dry-run");
@@ -138,6 +140,12 @@ if (updateDashboard)
     {
         Console.WriteLine($"Dashboard update FAILED: {ex.Message}");
         return 3;
+    }
+
+    // Summary email with a link to the Discrepancies page (DiscrepancyReport in appsettings.json). Never fails the run.
+    if (!dryRun)
+    {
+        await DiscrepancyReport.SendAsync(connectionString!, runStartedUtc);
     }
 }
 
